@@ -58,4 +58,19 @@ namespace ValheimPlus
             return il.AsEnumerable();
         }
     }
+
+    [HarmonyPatch(typeof(Piece), nameof(Piece.UpdateSupport))]
+    public static class UpdateSupport_Patch
+    {
+        private static void Postfix(Piece __instance)
+        {
+            // Read server-synced state
+            var zdo = __instance.m_nview.GetZDO();
+            float support = zdo.GetFloat("support", 0f);
+            
+            // Use vanilla visualization system
+            __instance.m_visualStability = support > 0f ? 1f : 0f;
+            __instance.UpdateVisual();
+        }
+    }
 }

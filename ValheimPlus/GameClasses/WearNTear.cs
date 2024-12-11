@@ -118,4 +118,41 @@ namespace ValheimPlus.GameClasses
             horizontalLoss -= horizontalLoss / 100 * clampedMultiplier;
         }
     }
+
+    public class WearNTear_Patches
+    {
+        [HarmonyPatch(typeof(WearNTear), nameof(WearNTear.GetSupport))]
+        public static class GetSupport_Patch
+        {
+            private static void Prefix(ref float __result)
+            {
+                if (ZNet.instance.IsServer())
+                {
+                    // Server enforces max support
+                    __result = Configuration.Current.Building.disableStructuralIntegrity ? 1000f : __result;
+                    // Sync this via ZDO to ensure vanilla clients receive it
+                    m_nview.GetZDO().Set("support", __result);
+                }
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(WearNTear), nameof(WearNTear.UpdateWear))]
+    public static class UpdateWear_Patch
+    {
+        private static bool Prefix(WearNTear __instance)
+        {
+            if (ZNet.instance.IsServer())
+            {
+                var zdo = __instance.m_nview.GetZDO();
+                bool noWeatherDamage = Configuration.Current.Building.noWeatherDamage;
+                zdo.Set("vplus_weather_immune", noWeatherDamage);
+                
+                // Force update visual state for all clients
+                __instance.m_nview.InvokeRPC(ZNetView.Everybody, "SetVisualState", new object[] { noWeatherDamage ? 0 : 1 });
+                return !noWeatherDamage; // Skip original method if weather damage disabled
+            }
+            return true;
+        }
+    }
 }
