@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
-using System.Reflection;
 using System.Text.RegularExpressions;
 using BepInEx;
 using BepInEx.Logging;
@@ -26,10 +25,10 @@ namespace ValheimPlus
         private const string ValheimPlusName = "Valheim Plus";
 
         // Version used when numeric is required (assembly info, bepinex, System.Version parsing).
-        public const string NumericVersion = "0.9.15.0";
+        public const string NumericVersion = "0.9.17.0";
 
         // Extra version, like alpha/beta/rc/stable. Can leave blank if a stable release.
-        private const string VersionExtra = "";
+        private const string VersionExtra = "-alpha01";
 
         // Version used when numeric is NOT required (Logging, config file lookup)
         public const string FullVersion = NumericVersion + VersionExtra;
@@ -38,10 +37,10 @@ namespace ValheimPlus
         private const string MinRequiredNumericVersion = NumericVersion;
 
         // The lowest game version this version of V+ is known to work with.
-        private static readonly GameVersion MinSupportedGameVersion = new(0, 219, 10);
+        private static readonly GameVersion MinSupportedGameVersion = new(0, 220, 3);
 
         // The game version this version of V+ was compiled against.
-        private static readonly GameVersion TargetGameVersion = new(0, 219, 13);
+        private static readonly GameVersion TargetGameVersion = new(0, 220, 3);
 
         // Versions we know for sure will not work with this game version.
         // Useful if a PTB is active to exclude it from the stable release.
@@ -213,14 +212,6 @@ namespace ValheimPlus
                 Harmony.PatchAll();
 
                 // manual patches that only should run in certain conditions, that otherwise would just cause errors.
-
-                // HarmonyPriority wasn't loading in the order I wanted,
-                // so manually load this one after the annotations are all loaded
-                Harmony.Patch(
-                    original: typeof(ZPlayFabMatchmaking).GetMethod("CreateLobby",
-                        BindingFlags.NonPublic | BindingFlags.Instance),
-                    transpiler: new HarmonyMethod(
-                        typeof(ZPlayFabMatchmaking_CreateLobby_Transpiler).GetMethod("Transpiler")));
 
                 // steam only patches
                 if (AppDomain.CurrentDomain.GetAssemblies()
