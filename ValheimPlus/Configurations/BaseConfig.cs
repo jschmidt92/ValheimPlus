@@ -15,7 +15,6 @@ namespace ValheimPlus.Configurations
 
     public abstract class BaseConfig<T> : IConfig where T : class, IConfig, new()
     {
-
         public string ServerSerializeSection()
         {
             if (!IsEnabled || !NeedsServerSync) return "";
@@ -26,12 +25,12 @@ namespace ValheimPlus.Configurations
             {
                 r += $"{prop.Name}={prop.GetValue(this, null)}|";
             }
+
             return r;
         }
-        [LoadingOption(LoadingMode.Never)]
-        public bool IsEnabled { get; set; } = false;
-        [LoadingOption(LoadingMode.Never)]
-        public virtual bool NeedsServerSync { get; set; } = false;
+
+        [LoadingOption(LoadingMode.Never)] public bool IsEnabled { get; set; } = false;
+        [LoadingOption(LoadingMode.Never)] public virtual bool NeedsServerSync { get; set; } = false;
 
         public static IniData iniUpdated = null;
 
@@ -46,12 +45,14 @@ namespace ValheimPlus.Configurations
                     ValheimPlusPlugin.Logger.LogInfo($"[{section}] Section is NOT enabled.");
                     ValheimPlusPlugin.Logger.LogInfo("");
                 }
+
                 return n;
-            } 
+            }
             else if (verbose)
             {
                 ValheimPlusPlugin.Logger.LogInfo($"[{section}] Section is enabled.");
             }
+
             var keyData = data[section];
             n.LoadIniData(keyData, section);
 
@@ -63,12 +64,15 @@ namespace ValheimPlus.Configurations
 
             return n;
         }
+
         private static Dictionary<Type, DGetDataValue> _getValues = new Dictionary<Type, DGetDataValue>()
         {
-            {typeof(float), GetFloatValue },
-            {typeof(int), GetIntValue },
-            {typeof(KeyCode), GetKeyCodeValue },
-            {typeof(bool), GetBoolValue }
+            { typeof(float), GetFloatValue },
+            { typeof(int), GetIntValue },
+            { typeof(KeyCode), GetKeyCodeValue },
+            { typeof(bool), GetBoolValue },
+            { typeof(string), GetStringValue },
+            { typeof(Enum), GetEnumValue }
         };
 
         public void LoadIniData(KeyDataCollection data, string section)
@@ -78,7 +82,8 @@ namespace ValheimPlus.Configurations
             if (thisConfiguration == null)
             {
                 thisConfiguration = this as T;
-                if (thisConfiguration == null) ValheimPlusPlugin.Logger.LogInfo("[{section}] Error on setting Configuration");
+                if (thisConfiguration == null)
+                    ValheimPlusPlugin.Logger.LogInfo("[{section}] Error on setting Configuration");
             }
 
             foreach (var property in typeof(T).GetProperties())
@@ -87,6 +92,7 @@ namespace ValheimPlus.Configurations
                 {
                     continue;
                 }
+
                 var currentValue = property.GetValue(thisConfiguration);
                 if (LoadLocalOnly(property))
                 {
@@ -102,15 +108,23 @@ namespace ValheimPlus.Configurations
                     continue;
                 }
 
-                if (_getValues.ContainsKey(property.PropertyType))
+                var propertyType = property.PropertyType;
+                if (propertyType.IsEnum) 
+                    propertyType = typeof(Enum);
+
+                if (_getValues.TryGetValue(propertyType, out var getValue))
                 {
-                    var getValue = _getValues[property.PropertyType];
                     var value = getValue(data, currentValue, keyName);
-                    if (!currentValue.Equals(value)) 
-                        ValheimPlusPlugin.Logger.LogInfo($"[{section}] Updating {keyName} from {currentValue} to {value}");
+                    if (!currentValue.Equals(value))
+                        ValheimPlusPlugin.Logger.LogInfo(
+                            $"[{section}] Updating {keyName} from {currentValue} to {value}");
                     property.SetValue(this, value, null);
                 }
-                else ValheimPlusPlugin.Logger.LogWarning($"[{section}] Could not load data of type {property.PropertyType} for key {keyName}");
+                else
+                {
+                    ValheimPlusPlugin.Logger.LogWarning(
+                        $"[{section}] Could not load data of type {propertyType} for key {keyName}");
+                }
             }
         }
 
@@ -120,14 +134,29 @@ namespace ValheimPlus.Configurations
         {
             return data.GetFloat(keyName, (float)currentValue);
         }
+
         private static object GetBoolValue(KeyDataCollection data, object currentValue, string keyName)
         {
             return data.GetBool(keyName);
         }
+
+        private static object GetStringValue(KeyDataCollection data, object currentValue, string keyName) => 
+            data[keyName];
+
+        private static object GetEnumValue(KeyDataCollection data, object currentValue, string keyName)
+        {
+            var enumType = currentValue.GetType();
+            var isFlagEnum = enumType.IsDefined(typeof(FlagsAttribute), false);
+            return isFlagEnum
+                ? data.GetFlags(keyName, currentValue)
+                : data.GetEnumValue(keyName, currentValue);
+        }
+
         private static object GetIntValue(KeyDataCollection data, object currentValue, string keyName)
         {
             return data.GetInt(keyName, (int)currentValue);
         }
+
         private static object GetKeyCodeValue(KeyDataCollection data, object currentValue, string keyName)
         {
             return data.GetKeyCode(keyName, (KeyCode)currentValue);
@@ -142,8 +171,10 @@ namespace ValheimPlus.Configurations
             {
                 keyName = char.ToLower(keyName[0]) + keyName.Substring(1);
             }
+
             return keyName;
         }
+
         private bool IgnoreLoading(PropertyInfo property)
         {
             var loadingOption = property.GetCustomAttribute<LoadingOption>();
@@ -151,24 +182,29 @@ namespace ValheimPlus.Configurations
 
             return (loadingMode == LoadingMode.Never);
         }
+
         private bool LoadLocalOnly(PropertyInfo property)
         {
             var loadingOption = property.GetCustomAttribute<LoadingOption>();
             var loadingMode = loadingOption?.LoadingMode ?? LoadingMode.Always;
 
-            return VPlusConfigSync.SyncRemote && (property.PropertyType == typeof(KeyCode) && !ConfigurationExtra.SyncHotkeys || loadingMode == LoadingMode.LocalOnly);
+            return VPlusConfigSync.SyncRemote &&
+                   (property.PropertyType == typeof(KeyCode) && !ConfigurationExtra.SyncHotkeys ||
+                    loadingMode == LoadingMode.LocalOnly);
         }
 
         private static object GetCurrentConfiguration(string section)
         {
             if (Configuration.Current == null) return null;
             var properties = Configuration.Current.GetType().GetProperties();
-            PropertyInfo property = properties.SingleOrDefault(p => p.Name.Equals(section, System.StringComparison.CurrentCultureIgnoreCase));
+            PropertyInfo property = properties.SingleOrDefault(p =>
+                p.Name.Equals(section, System.StringComparison.CurrentCultureIgnoreCase));
             if (property == null)
             {
                 ValheimPlusPlugin.Logger.LogWarning($"Property '{section}' not found in Configuration");
                 return null;
             }
+
             var thisConfiguration = property.GetValue(Configuration.Current) as T;
             return thisConfiguration;
         }
@@ -176,18 +212,19 @@ namespace ValheimPlus.Configurations
 
     public abstract class ServerSyncConfig<T> : BaseConfig<T> where T : class, IConfig, new()
     {
-        [LoadingOption(LoadingMode.Never)]
-        public override bool NeedsServerSync { get; set; } = true;
+        [LoadingOption(LoadingMode.Never)] public override bool NeedsServerSync { get; set; } = true;
     }
 
     public class LoadingOption : Attribute
     {
         public LoadingMode LoadingMode { get; }
+
         public LoadingOption(LoadingMode loadingMode)
         {
             LoadingMode = loadingMode;
         }
     }
+
     /// <summary>
     /// Defines, when a property is loaded
     /// </summary>
@@ -199,4 +236,3 @@ namespace ValheimPlus.Configurations
         Never = 3
     }
 }
-

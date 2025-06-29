@@ -3,6 +3,7 @@ using IniParser;
 using IniParser.Model;
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -220,6 +221,55 @@ namespace ValheimPlus.Configurations
 
             ValheimPlusPlugin.Logger.LogWarning($" [Int] Could not read {key}, using default value of {defaultVal}");
             return defaultVal;
+        }
+
+        public static object GetEnumValue(this KeyDataCollection data, string key, object defaultVal)
+        {
+            var enumType = defaultVal.GetType();
+            try
+            {
+                return Enum.Parse(enumType, data[key], true);
+            }
+            catch
+            {
+                ValheimPlusPlugin.Logger.LogWarning(
+                    $" [{enumType}] Could not read {key}, using default value of {defaultVal}");
+                return defaultVal;
+            }
+        }
+
+        public static object GetFlags(this KeyDataCollection data, string key, object defaultVal)
+        {
+            var enumType = defaultVal.GetType();
+            var flags = new List<object>();
+
+            var values = data[key].Split(',').ToList();
+            values.ForEach(x => x.Trim());
+
+            foreach (var opt in values)
+            {
+                try
+                {
+                    var flag = Enum.Parse(enumType, opt, true);
+                    flags.Add(flag);
+                }
+                catch
+                {
+                    ValheimPlusPlugin.Logger.LogWarning($" [{enumType.Name}] Unrecognized value `{opt}` in {key}");
+                }
+            }
+
+            var value = flags.Aggregate(0, (current, flag) => current | (int)flag);
+            try
+            {
+                return Enum.ToObject(enumType, value);
+            }
+            catch
+            {
+                ValheimPlusPlugin.Logger.LogWarning(
+                    $" [{enumType}] Could not read {key}, using default value of {defaultVal}");
+                return defaultVal;
+            }
         }
 
         public static KeyCode GetKeyCode(this KeyDataCollection data, string key, KeyCode defaultVal)

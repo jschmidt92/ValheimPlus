@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
+using JetBrains.Annotations;
 using UnityEngine;
 using ValheimPlus;
 using ValheimPlus.Configurations;
@@ -154,6 +155,17 @@ namespace ValheimPlus.GameClasses
             float fallDamage = Math.Min(scaledFallDamage, Configuration.Current.Player.maxFallDamage);
 
             return fallDamage;
+        }
+    }
+
+    [HarmonyPatch(typeof(Character), nameof(Character.GetHoverText))]
+    public static class Character_GetHoverText_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(Character __instance, ref string __result)
+        {
+            var growup = __instance.GetComponent<Growup>();
+            if (growup) ProcreationHelpers.AddGrowupInformation(__instance, growup, ref __result);
         }
     }
 }
